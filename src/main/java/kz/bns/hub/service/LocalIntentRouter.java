@@ -25,6 +25,7 @@ public class LocalIntentRouter {
 
     private final Map<UserIntent, List<Embedding>> cachedAnchorVectors = new EnumMap<>(UserIntent.class);
 
+    // TODO: После миграции на ONNX multilingual-e5-small заменить анкоры на лаконичные английские / мультиязычные эквиваленты
     @PostConstruct
     public void init() {
         log.info("Инициализация локального семантического роутера интентов...");
@@ -32,27 +33,31 @@ public class LocalIntentRouter {
         Map<UserIntent, List<String>> anchors = new EnumMap<>(UserIntent.class);
 
         anchors.put(UserIntent.API_REQUEST, List.of(
-            "api endpoint swagger json request",
-            "http method url web service api url",
-            "get post query parameters api integration"
+            "как вызвать метод api эндпоинт",
+            "спецификация swagger json схема параметров",
+            "get post url запросы интерфейса интеграции",
+            "какие параметры передавать в апи метод"
         ));
 
         anchors.put(UserIntent.ROLES_AND_ACCESS, List.of(
-            "user roles permissions access denied auth",
-            "security tokens access rights security matrix",
-            "administration forbidden block unauthorized permissions"
+            "какие у меня роли права доступа полномочия",
+            "ошибка доступа не хватает разрешений estatmeta",
+            "матрица распределения прав пользователей роли",
+            "как получить доступ к редактированию или согласованию"
         ));
 
         anchors.put(UserIntent.BDAP_PACKAGES, List.of(
-            "upload package status document error",
-            "processing package load data file system",
-            "archive transfer file status upload error"
+            "ошибка загрузки пакета в бдап bdap",
+            "порядок статусов пакетов 010 015 020 101",
+            "документ не утвержден блокирует пакет бдап",
+            "регистрация и отправка отчетности в бд ап"
         ));
 
         anchors.put(UserIntent.METHODOLOGY_KSP, List.of(
-            "methodology statistical forms indicators metrics",
-            "create new form design documents structure",
-            "classification measurements handbook indicators metadata"
+            "как добавить новый показатель ксп",
+            "создание новой статистической формы бланка",
+            "классификационный разрез единица измерения показатели",
+            "методология ведения csiinstance и индексов форм"
         ));
 
         // Предварительно векторизуем эталонные фразы с префиксом "query: " (требование E5)
