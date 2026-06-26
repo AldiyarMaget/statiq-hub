@@ -44,6 +44,12 @@ public class MermaidPostProcessor {
                 .replace("&#39;", "'")
                 .replace("&amp;", "&");
 
+        // 1b. Авто-замена запрещенных спецсимволов внутри блока mermaid:
+        code = code.replace("«", "'")
+                .replace("»", "'")
+                .replace("→", "->")
+                .replace("&", " и ");
+
         // 2. Убираем мусор, который модель иногда роняет ВНУТРЬ блока:
         //    вложенные ```mermaid/``` и строки-заголовки **...**.
         code = code.replace("```mermaid", "").replace("```", "");
@@ -63,10 +69,62 @@ public class MermaidPostProcessor {
         //    перенос/пробел и ставит ровно один с отступом.
         code = code.replaceAll("([\\]\\}])\\s*([A-Za-z])", "$1\n    $2");
 
-        // 6. Фикс реальных \n внутри ["..."] — заменяем на <br/>.
+        // 6. Фикс реальных \n внутри ["..."] и {"..."} — заменяем на &lt;br/&gt;.
         code = replaceNewlinesInQuotedNodes(code);
 
-        // 7. Схлопываем лишние пустые строки.
+        // 6b. Заменяем любые оставшиеся теги <br> или <br/> на их безопасную HTML-сущность &lt;br/&gt;.
+        code = code.replaceAll("(?i)<br\\s*/?>", "&lt;br/&gt;");
+
+        // 7. Валидатор кавычек (Парсер-гард)
+        String[] lines = code.split("\n");
+        for (int j = 0; j < lines.length; j++) {
+            String line = lines[j];
+            String indent = "";
+            int k = 0;
+            while (k < line.length() && Character.isWhitespace(line.charAt(k))) {
+                indent += line.charAt(k);
+                k++;
+            }
+            String trimmedLine = line.trim();
+            
+            int lastBracketQuote = trimmedLine.lastIndexOf("[\"");
+            int lastBraceQuote = trimmedLine.lastIndexOf("{\"");
+            int lastParenQuote = trimmedLine.lastIndexOf("(\"");
+            
+            int max = Math.max(lastBracketQuote, Math.max(lastBraceQuote, lastParenQuote));
+            
+            if (max != -1) {
+                if (max == lastBracketQuote) {
+                    String sub = trimmedLine.substring(lastBracketQuote);
+                    if (!sub.contains("\"]")) {
+                        String inner = trimmedLine.substring(lastBracketQuote + 2);
+                        if (inner.endsWith("\"")) inner = inner.substring(0, inner.length() - 1);
+                        inner = inner.replace("\"", "'");
+                        trimmedLine = trimmedLine.substring(0, lastBracketQuote + 2) + inner + "\"]";
+                    }
+                } else if (max == lastBraceQuote) {
+                    String sub = trimmedLine.substring(lastBraceQuote);
+                    if (!sub.contains("\"}")) {
+                        String inner = trimmedLine.substring(lastBraceQuote + 2);
+                        if (inner.endsWith("\"")) inner = inner.substring(0, inner.length() - 1);
+                        inner = inner.replace("\"", "'");
+                        trimmedLine = trimmedLine.substring(0, lastBraceQuote + 2) + inner + "\"}";
+                    }
+                } else if (max == lastParenQuote) {
+                    String sub = trimmedLine.substring(lastParenQuote);
+                    if (!sub.contains("\")")) {
+                        String inner = trimmedLine.substring(lastParenQuote + 2);
+                        if (inner.endsWith("\"")) inner = inner.substring(0, inner.length() - 1);
+                        inner = inner.replace("\"", "'");
+                        trimmedLine = trimmedLine.substring(0, lastParenQuote + 2) + inner + "\")";
+                    }
+                }
+            }
+            lines[j] = indent + trimmedLine;
+        }
+        code = String.join("\n", lines);
+
+        // 8. Схлопываем лишние пустые строки.
         code = code.replaceAll("\\n{3,}", "\n\n").trim() + "\n";
 
         return code;
@@ -80,8 +138,34 @@ public class MermaidPostProcessor {
                 int end = code.indexOf("\"]", i);
                 if (end != -1) {
                     String inside = code.substring(i + 2, end);
-                    inside = inside.replace("\n", "<br/>");
+                    inside = inside.replace("\n", "&lt;br/&gt;").replace("\r", "");
+                    inside = inside.replace("\"", "'");
+                    inside = inside.replace("<", "&lt;").replace(">", "&gt;");
                     result.append("[\"").append(inside).append("\"]");
+                    i = end + 2;
+                    continue;
+                }
+            }
+            if (i + 1 < code.length() && code.charAt(i) == '{' && code.charAt(i + 1) == '"') {
+                int end = code.indexOf("\"}", i);
+                if (end != -1) {
+                    String inside = code.substring(i + 2, end);
+                    inside = inside.replace("\n", "&lt;br/&gt;").replace("\r", "");
+                    inside = inside.replace("\"", "'");
+                    inside = inside.replace("<", "&lt;").replace(">", "&gt;");
+                    result.append("{\"").append(inside).append("\"}");
+                    i = end + 2;
+                    continue;
+                }
+            }
+            if (i + 1 < code.length() && code.charAt(i) == '(' && code.charAt(i + 1) == '"') {
+                int end = code.indexOf("\")", i);
+                if (end != -1) {
+                    String inside = code.substring(i + 2, end);
+                    inside = inside.replace("\n", "&lt;br/&gt;").replace("\r", "");
+                    inside = inside.replace("\"", "'");
+                    inside = inside.replace("<", "&lt;").replace(">", "&gt;");
+                    result.append("(\"").append(inside).append("\")");
                     i = end + 2;
                     continue;
                 }

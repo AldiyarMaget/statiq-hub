@@ -1,0 +1,36 @@
+claude.api.key=
+claude.model=claude-sonnet-4-5
+claude.max-tokens=4096
+proxy.enabled=false
+proxy.host=proxy20.statdata.kz
+proxy.port=3128
+proxy.connect-timeout-ms=30000
+proxy.read-timeout-ms=120000
+app.docs.path=./documents
+app.index.chunk-size=1200
+app.index.chunk-overlap=200
+app.index.passage-prefix=passage:
+app.search.max-results=10
+app.search.candidates=30
+app.search.min-score=0.4
+app.search.query-prefix=query:
+# === Сервер ===
+server.port=8090
+spring.application.name=stat-knowledge-hub
+app.cors.allowed-origins=*
+
+# === AI Provider Settings ===
+ai.provider=gemini
+ai.gemini.api-key=AQ.Ab8RN6IZukzej8vsa3gGf9r5E55m088THxsgyFT-uO-Zp7Lg_Q
+ai.gemini.model=gemini-2.5-flash
+
+# === Database & Vector Store Settings ===
+spring.datasource.url=jdbc:postgresql://localhost:5432/statiq_db
+spring.datasource.username=statiq_user
+spring.datasource.password=statiq_password
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+app.vector-store.table-name=statiq_embeddings
+app.vector-store.dimension=384
+app.vector-store.create-table=true
+app.vector-store.drop-table-first=false

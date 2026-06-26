@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import '../providers/chat_provider.dart';
 import '../models/chat_message.dart';
+import '../widgets/mermaid_render_widget.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -338,22 +339,25 @@ class _ChatScreenState extends State<ChatScreen> {
           _buildServerInfo(context, provider),
           const SizedBox(height: 10),
           // Theme Toggle Button
-          ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            leading: Icon(
-              provider.isDarkMode ? Icons.wb_sunny : Icons.nights_stay,
-              color: isDark ? Colors.white70 : Colors.black54,
-            ),
-            title: Text(
-              provider.isDarkMode ? 'Светлая тема' : 'Темная тема',
-              style: TextStyle(
-                color: isDark ? const Color(0xFFE3E3E3) : Colors.black87,
-                fontSize: 13.5,
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Icon(
+                provider.isDarkMode ? Icons.wb_sunny : Icons.nights_stay,
+                color: isDark ? Colors.white70 : Colors.black54,
               ),
+              title: Text(
+                provider.isDarkMode ? 'Светлая тема' : 'Темная тема',
+                style: TextStyle(
+                  color: isDark ? const Color(0xFFE3E3E3) : Colors.black87,
+                  fontSize: 13.5,
+                ),
+              ),
+              onTap: () {
+                provider.toggleTheme();
+              },
             ),
-            onTap: () {
-              provider.toggleTheme();
-            },
           ),
         ],
       ),
@@ -734,13 +738,26 @@ class _ChatScreenState extends State<ChatScreen> {
       mainMarkdown = lines.skip(1).join('\n').trim();
     }
 
+    // НАЧАЛО ХАКА ПЕРЕХВАТА MERMAID
+    // Превращаем блоки ```mermaid код ``` в MermaidRenderWidget
+    String processedMarkdown = mainMarkdown;
+    final regExp = RegExp(r'```mermaid\s*([\s\S]*?)\s*```');
+    
+    List<Widget> customMermaidWidgets = [];
+    processedMarkdown = processedMarkdown.replaceAllMapped(regExp, (match) {
+      final mermaidCode = match.group(1) ?? '';
+      customMermaidWidgets.add(MermaidRenderWidget(code: mermaidCode.trim()));
+      return '';
+    });
+    // КОНЕЦ ХАКА ПЕРЕХВАТА
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         if (warningBanner != null) warningBanner,
         MarkdownBody(
-          data: mainMarkdown,
+          data: processedMarkdown.trim(),
           selectable: true,
           shrinkWrap: true,
           styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
@@ -767,6 +784,7 @@ class _ChatScreenState extends State<ChatScreen> {
             tableBody: const TextStyle(fontSize: 13),
           ),
         ),
+        ...customMermaidWidgets,
       ],
     );}
 
