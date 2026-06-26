@@ -37,7 +37,7 @@ public class MermaidPostProcessor {
     }
 
     private String fixCode(String code) {
-        // 1. Декодируем HTML entities (Claude иногда экранирует стрелки и кавычки).
+        // 1. Декодируем HTML entities (LLM иногда экранирует стрелки и кавычки).
         code = code.replace("&lt;", "<")
                 .replace("&gt;", ">")
                 .replace("&quot;", "\"")

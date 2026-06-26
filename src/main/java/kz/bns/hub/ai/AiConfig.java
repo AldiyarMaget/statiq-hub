@@ -1,22 +1,21 @@
 package kz.bns.hub.ai;
 
-import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.e5smallv2q.E5SmallV2QuantizedEmbeddingModel;
-import dev.langchain4j.store.embedding.EmbeddingStore;
-import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 /**
- * Конфигурация слоя эмбеддингов и векторного хранилища.
+ * Конфигурация слоя эмбеддингов и выбора LLM-провайдера.
  *
- * Вызов Claude вынесен в {@link kz.bns.hub.ai.ClaudeClient} (через RestTemplate +
- * корпоративный прокси), поэтому langchain4j здесь отвечает ТОЛЬКО за
- * векторизацию документов и поиск. Раньше тут жил дублирующий chat-путь
- * (AnthropicChatModel + AiServices), который нигде не использовался — он удалён.
+ * <p>Эмбеддинги (E5-small-v2, in-process) используются в RAG-конвейере
+ * для векторизации документов и поиска. Векторное хранилище (PgVector)
+ * настраивается в {@link kz.bns.hub.config.VectorStoreConfiguration}.</p>
+ *
+ * <p>Выбор LLM-провайдера (Gemini / Claude) определяется настройкой
+ * {@code ai.provider} — по умолчанию Gemini.</p>
  */
 @Configuration
 public class AiConfig {
@@ -40,16 +39,15 @@ public class AiConfig {
         return new E5SmallV2QuantizedEmbeddingModel();
     }
 
-    // InMemoryEmbeddingStore удален, так как теперь используется PgvectorEmbeddingStore
-    // в VectorStoreConfiguration.
 
     /**
-     * Выбирает активный LlmClient (Gemini или Claude) в зависимости от настройки ai.provider.
+     * Выбирает активный {@link LlmClient} в зависимости от настройки {@code ai.provider}.
+     * По умолчанию — Gemini.
      */
     @Bean
     @Primary
     public LlmClient llmClient(
-            @Value("${ai.provider:claude}") String provider,
+            @Value("${ai.provider:gemini}") String provider,
             ClaudeClient claudeClient,
             GeminiClient geminiClient) {
         if ("gemini".equalsIgnoreCase(provider)) {

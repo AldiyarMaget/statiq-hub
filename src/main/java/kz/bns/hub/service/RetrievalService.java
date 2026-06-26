@@ -25,6 +25,7 @@ public class RetrievalService {
     private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final SegmentRegistry segmentRegistry;
+    private final LocalIntentRouter intentRouter;
 
     @Value("${app.search.max-results:10}")
     private int maxResults;
@@ -57,38 +58,37 @@ public class RetrievalService {
     public String findRelevantContext(String question, List<Map<String, String>> history) {
         try {
             String lower = question.toLowerCase();
+            boolean apiQuestion = isApiQuestion(lower);
 
-            // Принудительный поиск ROLES.md при вопросах про роли (только если не API-вопрос)
-            if (!isApiQuestion(lower) && (lower.contains("рол") || lower.contains("role") || lower.contains("право") || lower.contains("доступ")
-                    || lower.contains("разрешен") || lower.contains("полномочи"))) {
-                String rolesContext = findBySource("ROLES.md");
-                if (!rolesContext.isBlank()) {
-                    log.info("Принудительно добавлен контекст из ROLES.md");
-                    return rolesContext;
-                }
-            }
+            // ЛОКАЛЬНЫЙ СЕМАНТИЧЕСКИЙ МАРШРУТИЗАТОР
+            UserIntent intent = intentRouter.route(question);
 
-            // Принудительный поиск USER_GUIDE_BDAP.md при вопросах про БДАП/пакеты (только если не API-вопрос)
-            if (!isApiQuestion(lower) && (lower.contains("бдап") || lower.contains("бд ап") || lower.contains("bdap")
-                    || lower.contains("пакет") || lower.contains("загрузк"))) {
-                String bdapContext = findBySource("USER_GUIDE_BDAP.md");
-                if (!bdapContext.isBlank()) {
-                    log.info("Принудительно добавлен контекст из USER_GUIDE_BDAP.md");
-                    return bdapContext;
-                }
-            }
-
-            // НОВОЕ — принудительный USER_GUIDE.md при вопросах про показатели/КСП/формы.
-            // Срабатывает ТОЛЬКО если это НЕ чисто-API вопрос (для аналитика со словом
-            // "api/эндпоинт" пусть работает обычный векторный поиск по swagger).
-            if (!isApiQuestion(lower) &&
-                    (lower.contains("показател") || lower.contains("ксп")
-                            || lower.contains("добавить") || lower.contains("создать")
-                            || lower.contains("форм") || lower.contains("единиц"))) {
-                String guideContext = findBySource("USER_GUIDE.md");
-                if (!guideContext.isBlank()) {
-                    log.info("Принудительно добавлен контекст из USER_GUIDE.md (показатели/КСП)");
-                    return guideContext;
+            // Принудительный подмес контекста на основе распознанного семантического намерения
+            // (Срабатывает только если вопрос не является явным низкоуровневым API-запросом)
+            if (!apiQuestion) {
+                switch (intent) {
+                    case ROLES_AND_ACCESS -> {
+                        String rolesContext = findBySource("ROLES.md");
+                        if (!rolesContext.isBlank()) {
+                            log.info("[Роутер] Принудительно добавлен контекст из ROLES.md");
+                            return rolesContext;
+                        }
+                    }
+                    case BDAP_PACKAGES -> {
+                        String bdapContext = findBySource("USER_GUIDE_BDAP.md");
+                        if (!bdapContext.isBlank()) {
+                            log.info("[Роутер] Принудительно добавлен контекст из USER_GUIDE_BDAP.md");
+                            return bdapContext;
+                        }
+                    }
+                    case METHODOLOGY_KSP -> {
+                        String guideContext = findBySource("USER_GUIDE.md");
+                        if (!guideContext.isBlank()) {
+                            log.info("[Роутер] Принудительно добавлен контекст из USER_GUIDE.md (показатели/КСП)");
+                            return guideContext;
+                        }
+                    }
+                    default -> log.info("[Роутер] Явных триггеров подмеса не обнаружено. Переходим к стандартному векторному поиску.");
                 }
             }
 
@@ -105,7 +105,6 @@ public class RetrievalService {
                             .build()
             ).matches();
 
-            boolean apiQuestion = isApiQuestion(lower);
 
             if (matches.isEmpty()) {
                 log.info("Векторный поиск пуст (minScore={}). Пробую keyword-фолбэк.", minScore);
