@@ -1,0 +1,6 @@
+/.agents
+/.claude
+/.vscode
+/response_user.txt
+/target
+/src/main/resources/application.properties
