@@ -663,8 +663,8 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isUser
-                    ? (isDark ? const Color(0xFF282A2D) : Theme.of(context).primaryColor)
-                    : (isDark ? Colors.transparent : Theme.of(context).cardColor),
+                    ? Theme.of(context).colorScheme.primary
+                    : (isDark ? const Color(0xFF282A2D) : const Color(0xFFF3F4F6)),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -678,8 +678,8 @@ class _ChatScreenState extends State<ChatScreen> {
               child: isUser
                   ? Text(
                       message.content,
-                      style: TextStyle(
-                        color: isDark ? const Color(0xFFE3E3E3) : Colors.white,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 14.5,
                       ),
                     )
@@ -699,48 +699,12 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // Helper to split message and render Warning Banner if starts with '⚠️ Ответ из общих знаний'
   Widget _buildAssistantMessage(BuildContext context, String content) {
-    final isWarning = content.startsWith('⚠️ Ответ из общих знаний');
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    String mainMarkdown = content;
-    Widget? warningBanner;
-
-    if (isWarning) {
-      final lines = content.split('\n');
-      final firstLine = lines.first;
-      
-      warningBanner = Container(
-        margin: const EdgeInsets.only(bottom: 12.0),
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-        decoration: BoxDecoration(
-          color: Colors.amber.withValues(alpha: 0.05),
-          border: Border.all(color: Colors.amber.withValues(alpha: 0.15), width: 0.8),
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.amber.shade700, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                firstLine,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-      mainMarkdown = lines.skip(1).join('\n').trim();
-    }
 
     // НАЧАЛО ХАКА ПЕРЕХВАТА MERMAID
     // Превращаем блоки ```mermaid код ``` в MermaidRenderWidget
-    String processedMarkdown = mainMarkdown;
+    String processedMarkdown = content;
     final regExp = RegExp(r'```mermaid\s*([\s\S]*?)\s*```');
     
     List<Widget> customMermaidWidgets = [];
@@ -751,34 +715,151 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     // КОНЕЦ ХАКА ПЕРЕХВАТА
 
+    // Разбиваем текст на блоки: RAG, General Knowledge, Normal
+    List<Widget> blocks = [];
+    
+    Widget buildMd(String text) {
+      if (text.trim().isEmpty) return const SizedBox.shrink();
+      return MarkdownBody(
+        data: text.trim(),
+        selectable: true,
+        shrinkWrap: true,
+        styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+          p: const TextStyle(fontSize: 14.5, height: 1.45),
+          code: TextStyle(
+            backgroundColor: isDark ? const Color(0xFF282A2D) : const Color(0xFFE2E8F0),
+            fontFamily: 'monospace',
+            fontSize: 12.5,
+            fontWeight: FontWeight.bold,
+          ),
+          codeblockDecoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131314) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          tableBorder: TableBorder.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Theme.of(context).dividerColor,
+            width: 0.8,
+          ),
+          tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          tableHead: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          tableBody: const TextStyle(fontSize: 13),
+        ),
+      );
+    }
+
+    final lines = processedMarkdown.split('\n');
+    String currentBlockType = 'normal'; // 'normal', 'bns', 'general'
+    List<String> currentBlockLines = [];
+
+    void flushBlock() {
+      if (currentBlockLines.isEmpty) return;
+      final text = currentBlockLines.join('\n').trim();
+      if (text.isEmpty) return;
+
+      if (currentBlockType == 'bns') {
+        blocks.add(
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.3) : const Color(0xFFF0FDF4),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFBBF7D0),
+                width: 0.8,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.verified_user_outlined, size: 18, color: isDark ? Colors.green.shade400 : Colors.green.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Из документов БНС',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: isDark ? Colors.green.shade400 : Colors.green.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                buildMd(text),
+              ],
+            ),
+          ),
+        );
+      } else if (currentBlockType == 'general') {
+        blocks.add(
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.05),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.15), width: 0.8),
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.amber.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ответ из общих знаний',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                buildMd(text),
+              ],
+            ),
+          ),
+        );
+      } else {
+        blocks.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: buildMd(text),
+          ),
+        );
+      }
+      currentBlockLines.clear();
+    }
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.trim().startsWith('📄') && line.contains('Из документов БНС')) {
+        flushBlock();
+        currentBlockType = 'bns';
+        continue;
+      } else if (line.trim().startsWith('⚠️') && line.contains('Ответ из общих знаний')) {
+        flushBlock();
+        currentBlockType = 'general';
+        continue;
+      }
+      currentBlockLines.add(line);
+    }
+    flushBlock();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (warningBanner != null) warningBanner,
-        MarkdownBody(
-          data: processedMarkdown.trim(),
-          selectable: true,
-          shrinkWrap: true,
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-            p: const TextStyle(fontSize: 14.5, height: 1.45),
-            code: TextStyle(
-              backgroundColor: isDark ? const Color(0xFF282A2D) : const Color(0xFFE2E8F0),
-              fontFamily: 'monospace',
-              fontSize: 12.5,
-              fontWeight: FontWeight.bold,
-            ),
-            codeblockDecoration: BoxDecoration(
-              color: isDark ? const Color(0xFF131314) : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
-              ),
-            ),
-            tableBorder: TableBorder.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.08) : Theme.of(context).dividerColor,
-              width: 0.8,
-            ),
             tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             tableHead: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             tableBody: const TextStyle(fontSize: 13),

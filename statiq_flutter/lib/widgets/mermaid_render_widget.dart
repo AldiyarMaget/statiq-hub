@@ -135,37 +135,54 @@ class _MermaidRenderWidgetState extends State<MermaidRenderWidget> {
       web_helper.MermaidWebHelper.registerView(_viewId, widget.code);
     }
     
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      height: size.height * 0.4, // Ограничиваем высоту графика 40% от высоты экрана
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark 
-            ? const Color(0xFF131314) 
-            : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white.withValues(alpha: 0.08)
-              : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: Stack(
-        children: [
-          kIsWeb
-              ? HtmlElementView(viewType: _viewId)
-              : InteractiveViewer(
-                  boundaryMargin: const EdgeInsets.all(40),
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: WebViewWidget(controller: _controller),
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            height: size.height * 0.4, // Ограничиваем высоту графика 40% от высоты экрана
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? const Color(0xFF131314) 
+                  : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : const Color(0xFFE2E8F0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
+              ],
             ),
-        ],
-      ),
+            child: Stack(
+              children: [
+                kIsWeb
+                    ? HtmlElementView(viewType: _viewId)
+                    : InteractiveViewer(
+                        boundaryMargin: const EdgeInsets.all(40),
+                        minScale: 0.5,
+                        maxScale: 4.0,
+                        child: WebViewWidget(controller: _controller),
+                      ),
+                if (_isLoading)
+                  const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

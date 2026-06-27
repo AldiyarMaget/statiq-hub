@@ -82,22 +82,67 @@ public class LocalIntentRouter {
         String prefix = queryPrefix.isBlank() ? "" : queryPrefix.trim() + " ";
         Embedding questionEmbedding = embeddingModel.embed(prefix + question.toLowerCase()).content();
 
-        UserIntent bestIntent = UserIntent.GENERAL_SEARCH;
-        double maxSimilarity = -1.0;
-
+        // Вычисляем максимальное сходство для каждого интента
+        Map<UserIntent, Double> intentScores = new EnumMap<>(UserIntent.class);
         for (Map.Entry<UserIntent, List<Embedding>> entry : cachedAnchorVectors.entrySet()) {
+            double maxSim = -1.0;
             for (Embedding anchor : entry.getValue()) {
                 double similarity = cosineSimilarity(questionEmbedding.vector(), anchor.vector());
-                if (similarity > maxSimilarity) {
-                    maxSimilarity = similarity;
-                    if (similarity >= routingThreshold) {
-                        bestIntent = entry.getKey();
-                    }
+                if (similarity > maxSim) {
+                    maxSim = similarity;
                 }
+            }
+            intentScores.put(entry.getKey(), maxSim);
+        }
+
+        // Применяем Keyword Guards
+        String lowerQuestion = question.toLowerCase();
+
+        boolean hasBdapMarker = lowerQuestion.contains("010")
+                || lowerQuestion.contains("020")
+                || lowerQuestion.contains("статус")
+                || lowerQuestion.contains("пакет")
+                || lowerQuestion.contains("отправить отчет")
+                || lowerQuestion.contains("бдап")
+                || lowerQuestion.contains("ошибка отправки");
+
+        boolean hasRolesMarker = lowerQuestion.contains("роль")
+                || lowerQuestion.contains("доступ")
+                || lowerQuestion.contains("права")
+                || lowerQuestion.contains("администратор")
+                || lowerQuestion.contains("просмотр")
+                || lowerQuestion.contains("редактирование")
+                || lowerQuestion.contains("estatmeta");
+
+        if (hasBdapMarker) {
+            double score = intentScores.getOrDefault(UserIntent.BDAP_PACKAGES, -1.0);
+            intentScores.put(UserIntent.BDAP_PACKAGES, score + 0.2);
+            log.info("Keyword Guards: обнаружен маркер BDAP_PACKAGES. Добавлен бонус +0.2. Новый скор: {}", intentScores.get(UserIntent.BDAP_PACKAGES));
+        }
+
+        if (!hasRolesMarker) {
+            double score = intentScores.getOrDefault(UserIntent.ROLES_AND_ACCESS, -1.0);
+            intentScores.put(UserIntent.ROLES_AND_ACCESS, score - 0.25);
+            log.info("Keyword Guards: отсутствуют маркеры прав. Скор ROLES_AND_ACCESS оштрафован на -0.25. Новый скор: {}", intentScores.get(UserIntent.ROLES_AND_ACCESS));
+        }
+
+        // Выбираем интент с максимальным скором
+        UserIntent winnerIntent = UserIntent.GENERAL_SEARCH;
+        double maxScore = -1.0;
+
+        for (Map.Entry<UserIntent, Double> entry : intentScores.entrySet()) {
+            if (entry.getValue() > maxScore) {
+                maxScore = entry.getValue();
+                winnerIntent = entry.getKey();
             }
         }
 
-        log.info("Семантический роутер: определен интент [{}] с макс. косинусным сходством {}", bestIntent, String.format("%.3f", maxSimilarity));
+        UserIntent bestIntent = UserIntent.GENERAL_SEARCH;
+        if (maxScore >= routingThreshold) {
+            bestIntent = winnerIntent;
+        }
+
+        log.info("Семантический роутер: определен интент [{}] с макс. косинусным сходством {}, порог: {}", bestIntent, String.format("%.3f", maxScore), routingThreshold);
         return bestIntent;
     }
 
